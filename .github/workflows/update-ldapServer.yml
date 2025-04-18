@@ -34,15 +34,26 @@ jobs:
           echo "Encontrada IP: $IP"
 
     # 4. Sustituir IP en login.php
-    # ─── OPCIÓN A: marcador fijo ─────────
-    - name: Reemplazar marcador
+    - name: Actualizar ldap_server y mostrar diff
+      shell: bash
       run: |
-        sed -i "s|ldap://REPLACE_WITH_IP|ldap://${{ env.VM_IP }}|" php/login.php
+        FILE="php/login.php"
+    
+        # Extraer la IP previa (si existe)
+        OLD_IP=$(grep -oE 'ldap://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' "$FILE" | cut -d/ -f3 | head -n1 || true)
+        NEW_IP="${{ env.VM_IP }}"
+    
+        echo "IP anterior en login.php: ${OLD_IP:-<no encontrada>}"
+        echo "IP nueva obtenida de la VM: $NEW_IP"
+    
+        # Solo reemplazar si la IP cambió
+        if [[ "$OLD_IP" != "$NEW_IP" ]]; then
+          sed -E -i "s|(ldap://)[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|\1$NEW_IP|" "$FILE"
+          echo "✔️  login.php actualizado."
+        else
+          echo "ℹ️  Las IP coinciden; no se modifica el archivo."
+        fi
 
-    # ─── OPCIÓN B: sustituir cualquier IP ─
-    # Descomenta si prefieres detectar cualquier IPv4
-    # - run: |
-    #     sed -E -i "s|(ldap://)[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|\1${{ env.VM_IP }}|" php/login.php
 
     # 5. Commit y push
     - name: Commit y push
