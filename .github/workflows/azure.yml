@@ -13,7 +13,7 @@ jobs:
       LOCATION: westus2
       ZONE: "1"          # deja "" si no quieres AZ
       ADMIN_USER: azureuser
-      IMAGE_URN: MicrosoftWindowsServer:WindowsServer:2016-datacenter-server-core:latest
+      IMAGE_URN: MicrosoftWindowsServer:WindowsServer:2016-Datacenter:latest
 
     steps:
     # 1. Checkout
