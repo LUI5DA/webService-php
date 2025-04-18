@@ -1,4 +1,4 @@
-name: Agregar usuarios a Active Directory
+name: Crear usuarios en Active Directory
 on: workflow_dispatch
 
 jobs:
@@ -7,45 +7,52 @@ jobs:
     environment: secrets
     permissions:
       contents: write
+    strategy:
+      matrix:
+        user:
+          - '{ "name": "usuario final", "username": "usuariofinal", "email": "usuario@redes1.dev", "password": "holaholaholahola12+", "admin": true }'
+          - '{ "name": "Dylan Elizondo", "username": "dylan", "email": "dylan@redes1.dev", "password": "ElTigre123+", "admin": false }'
+          - '{ "name": "Kate Guillen", "username": "kate", "email": "kate@redes1.dev", "password": "ElTigre123+", "admin": false }'
+          - '{ "name": "Luis David", "username": "luis", "email": "luis@redes1.dev", "password": "ElTigre123+", "admin": false }'
+          - '{ "name": "Andrea Orozco", "username": "andrea", "email": "andrea@redes1.dev", "password": "ElTigre123+", "admin": false }'
+
     env:
       RG: ACTIVE_DIR
       VM: RedesAD
       DOMAIN: redes1.dev
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     - name: Azure login
       uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Crear usuarios en AD
+    - name: Crear usuario desde JSON
       uses: azure/cli@v2
       with:
         inlineScript: |
-          echo "🔎 Obteniendo IP de la VM..."
-          VM_IP=$(az vm show -d -g "$RG" -n "$VM" --query publicIps -o tsv)
-          echo "📡 IP encontrada: $VM_IP"
-
-          echo "👥 Agregando usuarios al Active Directory..."
+          echo "👤 Procesando usuario: ${{ matrix.user }}"
+          USER_JSON='${{ matrix.user }}'
 
           az vm run-command invoke \
             --resource-group "$RG" \
             --name "$VM" \
             --command-id RunPowerShellScript \
-            --scripts '
-              $domain = "${{ env.DOMAIN }}"
-              $userPass = ConvertTo-SecureString "Clave1234" -AsPlainText -Force
+            --scripts "
+              \$userData = ConvertFrom-Json '$USER_JSON'
+              \$securePass = ConvertTo-SecureString \$userData.password -AsPlainText -Force
 
-              # Usuario principal
-              New-ADUser -Name "usuario final" -GivenName "usuario" -Surname "final" -UserPrincipalName "usuario@$domain" -AccountPassword $userPass -Enabled $true
+              # Crear usuario
+              New-ADUser -Name \$userData.name `
+                         -SamAccountName \$userData.username `
+                         -UserPrincipalName \$userData.email `
+                         -AccountPassword \$securePass `
+                         -Enabled \$true
 
-              # Otros usuarios
-              1..4 | ForEach-Object {
-                New-ADUser -Name "usuario$_" -SamAccountName "usuario$_" -UserPrincipalName "usuario$_@$domain" -AccountPassword $userPass -Enabled $true
+              # Agregar a grupo de admins si corresponde
+              if (\$userData.admin -eq \$true) {
+                Add-ADGroupMember -Identity 'Domain Admins' -Members \$userData.username
               }
 
-              Write-Output "✅ Usuarios creados correctamente en $domain"
-            '
+              Write-Output \"✅ Usuario \$userData.username creado correctamente\"
+            "
