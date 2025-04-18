@@ -1,0 +1,74 @@
+name: Provisionar VM Windows y actualizar PHP
+on: workflow_dispatch
+
+jobs:
+  build-vm:
+    runs-on: ubuntu-latest
+    environment: secrets
+    permissions:
+      contents: write
+    env:
+      RG: ACTIVE_DIR
+      VM: RedesAD
+      LOCATION: westus2
+      ZONE: "1"          # deja "" si no quieres AZ
+      ADMIN_USER: azureuser
+      IMAGE_URN: MicrosoftWindowsServer:WindowsServer:2016-datacenter-server-core:latest
+
+    steps:
+    # 1. Checkout
+    - uses: actions/checkout@v4
+
+    # 2. Login a Azure
+    - name: Azure login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    # 3. Crear RG + VM  + abrir puertos RDP y LDAP
+    - name: Crear VM y abrir LDAP
+      id: create_vm
+      uses: azure/cli@v2
+      with:
+        inlineScript: |
+          set -e
+          az group create -n "$RG" -l "$LOCATION" --output none
+
+          # si definiste ZONE:
+          ZONE_ARG=""
+          if [ -n "$ZONE" ]; then ZONE_ARG="--zone $ZONE"; fi
+
+          echo "🖥  Creando VM..."
+          az vm create \
+            --resource-group "$RG" \
+            --name "$VM" \
+            --image "$IMAGE_URN" \
+            --size Standard_D2s_v3 \
+            --admin-username "$ADMIN_USER" \
+            --admin-password "ClaveSegura123!" \
+            --public-ip-sku Standard \
+            $ZONE_ARG \
+            --nsg-rule RDP \
+            --output none
+
+          echo "🔓  Abriendo puerto LDAP 389..."
+          az vm open-port --resource-group "$RG" --name "$VM" --port 389 --priority 1030 --output none
+
+          VM_IP=$(az vm show -g "$RG" -n "$VM" -d --query publicIps -o tsv)
+          echo "VM_IP=$VM_IP"
+          echo "VM_IP=$VM_IP" >> "$GITHUB_ENV"
+
+    # 4. Sustituir IP en el archivo PHP
+    - name: Actualizar ldap_server en php/login.php
+      run: |
+        sed -i "s|ldap://REPLACE_WITH_IP|ldap://${{ env.VM_IP }}|" php/login.php
+
+    # 5. Commit & push
+    - name: Commit y push
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add php/login.php
+        git commit -m "chore: update LDAP IP -> ${{ env.VM_IP }}" || echo "Sin cambios"
+        git push
