@@ -1,4 +1,4 @@
-name: Crear usuarios en Active Directory
+name: Crear usuarios personalizados en Active Directory
 on: workflow_dispatch
 
 jobs:
@@ -7,7 +7,10 @@ jobs:
     environment: secrets
     permissions:
       contents: write
+
+    # 👇 Esto evita ejecución en paralelo
     strategy:
+      max-parallel: 1
       matrix:
         user:
           - '{ "name": "usuario final", "username": "usuariofinal", "email": "usuario@redes1.dev", "password": "holaholaholahola12+", "admin": true }'
@@ -31,7 +34,7 @@ jobs:
       uses: azure/cli@v2
       with:
         inlineScript: |
-          echo "👤 Procesando usuario: ${{ matrix.user }}"
+          echo "👤 Procesando usuario..."
           USER_JSON='${{ matrix.user }}'
 
           az vm run-command invoke \
