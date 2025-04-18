@@ -1,0 +1,91 @@
+name: Configurar AD DS en VM existente
+on: workflow_dispatch
+
+jobs:
+  ad-setup:
+    runs-on: ubuntu-latest
+    environment: secrets          # donde están los secretos
+    env:
+      RG: ACTIVE_DIR              # <- Resource Group de la VM
+      VM: RedesAD                 # <- Nombre exacto de la VM
+      DOMAIN_FQDN: redes1.dev
+      NETBIOS: REDES1
+      SAFE_PASS: ${{ secrets.AD_DS_SAFEMODE_PASS }}
+      LOCAL_ADMIN_PASS: ${{ secrets.VM_ADMIN_PASS }}
+
+    steps:
+    ######################################################################
+    # 1. Login a Azure
+    ######################################################################
+    - uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    ######################################################################
+    # 2. Instalar rol AD DS y promover a DC  (reinicia la VM)
+    ######################################################################
+    - name: Instalar AD DS y promover DC
+      uses: azure/cli@v2
+      with:
+        inlineScript: |
+          az vm run-command invoke \
+            --resource-group "$RG" \
+            --name "$VM" \
+            --command-id RunPowerShellScript \
+            --scripts @- <<'PS1'
+            Param($DomainFqdn,$Netbios,$SafePass)
+            Write-Host "Instalando rol AD DS..."
+            Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+
+            $secure = ConvertTo-SecureString $SafePass -AsPlainText -Force
+            Install-ADDSForest `
+              -DomainName $DomainFqdn `
+              -DomainNetbiosName $Netbios `
+              -SafeModeAdministratorPassword $secure `
+              -Force
+              PS1 \
+            --parameters "DomainFqdn=$DOMAIN_FQDN" "Netbios=$NETBIOS" "SafePass=$SAFE_PASS"
+
+    ######################################################################
+    # 3. Esperar a que el reinicio termine
+    ######################################################################
+    - name: Esperar a que la VM reinicie
+      uses: azure/cli@v2
+      with:
+        inlineScript: az vm wait -g "$RG" -n "$VM" --updated --interval 30 --timeout 1200
+
+    ######################################################################
+    # 4. Ajustar política de contraseñas y crear 5 usuarios
+    ######################################################################
+    - name: Crear usuarios y política de contraseña
+      uses: azure/cli@v2
+      with:
+        inlineScript: |
+          az vm run-command invoke \
+            --resource-group "$RG" \
+            --name "$VM" \
+            --command-id RunPowerShellScript \
+            --scripts @- <<'PS2'
+            Param($Domain,$MinLength)
+            Import-Module ActiveDirectory
+
+            Write-Host "Estableciendo longitud mínima de contraseña a $MinLength"
+            Set-ADDefaultDomainPasswordPolicy -Identity $Domain -MinPasswordLength $MinLength
+
+            # --- Usuarios a crear -----------------
+            $users = @(
+              @{Name='usuario final'; Sam='usuario.final'; Email='usuario@redes1.dev'; Pass='holaholaholahola12+'},
+              @{Name='Dylan Alvarado'; Sam='user01'; Email='dylan@redes1.dev'; Pass='elTigre123+'},
+              @{Name='Luis David'; Sam='user02'; Email='luis@redes1.dev'; Pass='elTigre123+'},
+              @{Name='Andrea Orozco'; Sam='user03'; Email='andrea@redes1.dev'; Pass='elTigre123+'},
+              @{Name='Kate Guillen'; Sam='user04'; Email='kate@redes1.dev'; Pass='elTigre123+'}
+            )
+
+            foreach ($u in $users) {
+              $pwd = ConvertTo-SecureString $u.Pass -AsPlainText -Force
+              New-ADUser -Name $u.Name -SamAccountName $u.Sam `
+                         -EmailAddress $u.Email -AccountPassword $pwd -Enabled $true
+              Write-Host "Creado $($u.Name)"
+            }
+            PS2 \
+            --parameters "Domain=$DOMAIN_FQDN" "MinLength=4"
