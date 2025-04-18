@@ -64,11 +64,18 @@ jobs:
         sed -E -i "s|(ldap://)[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|\1${{ env.VM_IP }}|" php/login.php
 
     # 5. Commit & push
-    - name: Commit y push
+    - name: Commit & push
       if: github.ref == 'refs/heads/main'
       run: |
         git config user.name  "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add php/login.php
+    
+        git add php/login.php || true
         git commit -m "chore: update LDAP IP -> ${{ env.VM_IP }}" || echo "Sin cambios"
+        
+        # Trae cambios remotos y re‑aplica tu commit si existe
+        git pull --rebase --autostash
+        
+        # Empuja; si no hay commits, no hace daño
         git push
+
