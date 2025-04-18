@@ -1,91 +1,72 @@
-name: Configurar AD DS en VM existente
+name: Configurar Active Directory y usuarios
 on: workflow_dispatch
 
 jobs:
-  ad-setup:
+  configurar-ad:
     runs-on: ubuntu-latest
-    environment: secrets          # donde están los secretos
+    environment: secrets
+    permissions:
+      contents: write
     env:
-      RG: ACTIVE_DIR              # <- Resource Group de la VM
-      VM: RedesAD                 # <- Nombre exacto de la VM
-      DOMAIN_FQDN: redes1.dev
-      NETBIOS: REDES1
-      SAFE_PASS: ${{ secrets.AD_DS_SAFEMODE_PASS }}
-      LOCAL_ADMIN_PASS: ${{ secrets.VM_ADMIN_PASS }}
+      RG: ACTIVE_DIR
+      VM: RedesAD
+      ADMIN_USER: azureuser
+      ADMIN_PASSWORD: 'ClaveSegura123!'
+      DOMAIN: redes1.dev
 
     steps:
-    ######################################################################
-    # 1. Login a Azure
-    ######################################################################
-    - uses: azure/login@v2
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Azure login
+      uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    ######################################################################
-    # 2. Instalar rol AD DS y promover a DC  (reinicia la VM)
-    ######################################################################
-    - name: Instalar AD DS y promover DC
+    - name: Promover a DC y crear usuarios
       uses: azure/cli@v2
       with:
         inlineScript: |
+          echo "🔎 Obteniendo IP de la VM..."
+          VM_IP=$(az vm show -d -g "$RG" -n "$VM" --query publicIps -o tsv)
+          echo "📡 IP encontrada: $VM_IP"
+
+          echo "🚀 Ejecutando PowerShell remoto para configurar Active Directory..."
+
           az vm run-command invoke \
             --resource-group "$RG" \
             --name "$VM" \
             --command-id RunPowerShellScript \
-            --scripts @- <<'PS1'
-            Param($DomainFqdn,$Netbios,$SafePass)
-            Write-Host "Instalando rol AD DS..."
-            Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+            --scripts '
+              $domain = "${{ env.DOMAIN }}"
+              $adminPass = "${{ env.ADMIN_PASSWORD }}"
+              $securePass = ConvertTo-SecureString $adminPass -AsPlainText -Force
 
-            $secure = ConvertTo-SecureString $SafePass -AsPlainText -Force
-            Install-ADDSForest `
-              -DomainName $DomainFqdn `
-              -DomainNetbiosName $Netbios `
-              -SafeModeAdministratorPassword $secure `
-              -Force
-              PS1 \
-            --parameters "DomainFqdn=$DOMAIN_FQDN" "Netbios=$NETBIOS" "SafePass=$SAFE_PASS"
+              Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+              Import-Module ADDSDeployment
 
-    ######################################################################
-    # 3. Esperar a que el reinicio termine
-    ######################################################################
-    - name: Esperar a que la VM reinicie
-      uses: azure/cli@v2
-      with:
-        inlineScript: az vm wait -g "$RG" -n "$VM" --updated --interval 30 --timeout 1200
+              Install-ADDSForest `
+                  -DomainName $domain `
+                  -CreateDnsDelegation:$false `
+                  -DatabasePath "C:\Windows\NTDS" `
+                  -DomainMode "Win2012R2" `
+                  -DomainNetbiosName ($domain.Split(".")[0]) `
+                  -ForestMode "Win2012R2" `
+                  -InstallDns:$true `
+                  -LogPath "C:\Windows\NTDS" `
+                  -SysvolPath "C:\Windows\SYSVOL" `
+                  -Force:$true `
+                  -SafeModeAdministratorPassword $securePass
 
-    ######################################################################
-    # 4. Ajustar política de contraseñas y crear 5 usuarios
-    ######################################################################
-    - name: Crear usuarios y política de contraseña
-      uses: azure/cli@v2
-      with:
-        inlineScript: |
-          az vm run-command invoke \
-            --resource-group "$RG" \
-            --name "$VM" \
-            --command-id RunPowerShellScript \
-            --scripts @- <<'PS2'
-            Param($Domain,$MinLength)
-            Import-Module ActiveDirectory
+              Start-Sleep -Seconds 60
 
-            Write-Host "Estableciendo longitud mínima de contraseña a $MinLength"
-            Set-ADDefaultDomainPasswordPolicy -Identity $Domain -MinPasswordLength $MinLength
+              $userPass = ConvertTo-SecureString "holaholaholahola12+" -AsPlainText -Force
 
-            # --- Usuarios a crear -----------------
-            $users = @(
-              @{Name='usuario final'; Sam='usuario.final'; Email='usuario@redes1.dev'; Pass='holaholaholahola12+'},
-              @{Name='Dylan Alvarado'; Sam='user01'; Email='dylan@redes1.dev'; Pass='elTigre123+'},
-              @{Name='Luis David'; Sam='user02'; Email='luis@redes1.dev'; Pass='elTigre123+'},
-              @{Name='Andrea Orozco'; Sam='user03'; Email='andrea@redes1.dev'; Pass='elTigre123+'},
-              @{Name='Kate Guillen'; Sam='user04'; Email='kate@redes1.dev'; Pass='elTigre123+'}
-            )
+              New-ADUser -Name "usuario final" -GivenName "usuario" -Surname "final" -UserPrincipalName "usuario@$domain" -AccountPassword $userPass -Enabled $true
 
-            foreach ($u in $users) {
-              $pwd = ConvertTo-SecureString $u.Pass -AsPlainText -Force
-              New-ADUser -Name $u.Name -SamAccountName $u.Sam `
-                         -EmailAddress $u.Email -AccountPassword $pwd -Enabled $true
-              Write-Host "Creado $($u.Name)"
-            }
-            PS2 \
-            --parameters "Domain=$DOMAIN_FQDN" "MinLength=4"
+              1..4 | ForEach-Object {
+                New-ADUser -Name "usuario$_" -SamAccountName "usuario$_" -UserPrincipalName "usuario$_@$domain" -AccountPassword $userPass -Enabled $true
+              }
+
+              Write-Output "✅ Active Directory configurado y usuarios creados en $domain"
+            '
