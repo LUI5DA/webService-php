@@ -1,0 +1,51 @@
+name: Agregar usuarios a Active Directory
+on: workflow_dispatch
+
+jobs:
+  agregar-usuarios:
+    runs-on: ubuntu-latest
+    environment: secrets
+    permissions:
+      contents: write
+    env:
+      RG: ACTIVE_DIR
+      VM: RedesAD
+      DOMAIN: redes1.dev
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Azure login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Crear usuarios en AD
+      uses: azure/cli@v2
+      with:
+        inlineScript: |
+          echo "🔎 Obteniendo IP de la VM..."
+          VM_IP=$(az vm show -d -g "$RG" -n "$VM" --query publicIps -o tsv)
+          echo "📡 IP encontrada: $VM_IP"
+
+          echo "👥 Agregando usuarios al Active Directory..."
+
+          az vm run-command invoke \
+            --resource-group "$RG" \
+            --name "$VM" \
+            --command-id RunPowerShellScript \
+            --scripts '
+              $domain = "${{ env.DOMAIN }}"
+              $userPass = ConvertTo-SecureString "Clave1234" -AsPlainText -Force
+
+              # Usuario principal
+              New-ADUser -Name "usuario final" -GivenName "usuario" -Surname "final" -UserPrincipalName "usuario@$domain" -AccountPassword $userPass -Enabled $true
+
+              # Otros usuarios
+              1..4 | ForEach-Object {
+                New-ADUser -Name "usuario$_" -SamAccountName "usuario$_" -UserPrincipalName "usuario$_@$domain" -AccountPassword $userPass -Enabled $true
+              }
+
+              Write-Output "✅ Usuarios creados correctamente en $domain"
+            '
