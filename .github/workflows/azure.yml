@@ -59,9 +59,9 @@ jobs:
           echo "VM_IP=$VM_IP" >> "$GITHUB_ENV"
 
     # 4. Sustituir IP en el archivo PHP
-    - name: Actualizar ldap_server en php/login.php
+    - name: Actualizar ldap_server
       run: |
-        sed -i "s|ldap://REPLACE_WITH_IP|ldap://${{ env.VM_IP }}|" php/login.php
+        sed -E -i "s|(ldap://)[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|\1${{ env.VM_IP }}|" php/login.php
 
     # 5. Commit & push
     - name: Commit y push
