@@ -1,4 +1,4 @@
-name: Provisionar VM Windows y actualizar PHP
+name: Provisionar VM WindowsServer2016
 on: workflow_dispatch
 
 jobs:
@@ -11,7 +11,7 @@ jobs:
       RG: ACTIVE_DIR
       VM: RedesAD
       LOCATION: westus2
-      ZONE: "1"          # deja "" si no quieres AZ
+      ZONE: "1"
       ADMIN_USER: azureuser
       IMAGE_URN: MicrosoftWindowsServer:WindowsServer:2016-Datacenter:latest
 
