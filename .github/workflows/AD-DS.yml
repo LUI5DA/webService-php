@@ -1,4 +1,4 @@
-name: Configurar Active Directory y usuarios
+name: Configurar Active Directory
 on: workflow_dispatch
 
 jobs:
