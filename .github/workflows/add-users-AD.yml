@@ -1,4 +1,4 @@
-name: Crear usuarios personalizados en Active Directory
+name: Crear usuarios en Active Directory
 on: workflow_dispatch
 
 jobs:
