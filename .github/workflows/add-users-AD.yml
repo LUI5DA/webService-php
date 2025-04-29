@@ -50,9 +50,9 @@ jobs:
                          -SamAccountName \$userData.username `
                          -UserPrincipalName \$userData.email `
                          -AccountPassword \$securePass `
-                         -Enabled \$true
-                         -PasswordNeverExpires \$true 
-                         -ChangePasswordAtLogon \$false;
+                         -Enabled \$true `
+                         -PasswordNeverExpires \$true `
+                         -ChangePasswordAtLogon \$false
 
               # Agregar a grupo de admins si corresponde
               if (\$userData.admin -eq \$true) {
