@@ -1,66 +1,70 @@
 name: Actualizar IP LDAP
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 jobs:
   update-php:
     runs-on: ubuntu-latest
     environment: secrets
     permissions:
-      contents: write          # para commit/push
+      contents: write   # Necesario para hacer commit & push
 
     env:
-      RG: ACTIVE_DIR           # ← Resource Group donde vive la VM
-      VM: RedesAD              # ← Nombre exacto de la VM
+      RG: ACTIVE_DIR    # Resource Group donde vive la VM
+      VM: RedesAD       # Nombre de tu VM en Azure
 
     steps:
-    # 1. Código
-    - uses: actions/checkout@v4
-      with: { fetch-depth: 0 }
+      # 1. Traer todo el repo y su historial para poder hacer pull y push
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    # 2. Login a Azure
-    - uses: azure/login@v2
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      # 2. Autenticar con Azure
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # 3. Obtener la IP pública de la VM
-    - name: Obtener IP pública
-      id: getip
-      uses: azure/cli@v2
-      with:
-        inlineScript: |
-          IP=$(az vm show -g "$RG" -n "$VM" -d --query publicIps -o tsv)
-          echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "VM_IP=$IP"     >> $GITHUB_ENV
-          echo "Encontrada IP: $IP"
+      # 3. Obtener la IP pública de la VM y guardarla en VM_IP
+      - name: Obtener IP pública
+        id: getip
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            IP=$(az vm show -g "$RG" -n "$VM" -d --query publicIps -o tsv)
+            echo "VM_IP=$IP" >> $GITHUB_ENV
+            echo "Encontrada IP pública: $IP"
 
-    # 4. Sustituir IP en login.php
-    - name: Actualizar ldap_server y mostrar diff
-      shell: bash
-      run: |
-        FILE="php/login.php"
-    
-        # Extraer la IP previa (si existe)
-        OLD_IP=$(grep -oE 'ldap://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' "$FILE" | cut -d/ -f3 | head -n1 || true)
-        NEW_IP="${{ env.VM_IP }}"
-    
-        echo "IP anterior en login.php: ${OLD_IP:-<no encontrada>}"
-        echo "IP nueva obtenida de la VM: $NEW_IP"
-    
-        # Solo reemplazar si la IP cambió
-        if [[ "$OLD_IP" != "$NEW_IP" ]]; then
-          sed -E -i "s|(ldap://)[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|\1$NEW_IP|" "$FILE"
-          echo "✔️  login.php actualizado."
-        else
-          echo "ℹ️  Las IP coinciden; no se modifica el archivo."
-        fi
+      # 4. Sincronizar main para partir de la última versión
+      - name: Sincronizar main
+        run: git pull origin main
 
+      # 5. Reemplazar la antigua IP por la nueva en php/login.php
+      - name: Actualizar ldap_server en login.php
+        run: |
+          FILE="php/login.php"
+          OLD_IP=$(grep -oE 'ldap://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' "$FILE" | cut -d/ -f3 | head -n1 || true)
+          NEW_IP="${{ env.VM_IP }}"
+          echo "IP actual en login.php: ${OLD_IP:-<no encontrada>}"
+          echo "IP obtenida de la VM: $NEW_IP"
 
-    # 5. Commit y push
-    - name: Commit y push
-      run: |
-        git config user.name  "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add php/login.php
-        git commit -m "ci: update LDAP IP -> ${{ env.VM_IP }}" || echo "Sin cambios"
-        git pull --rebase --autostash
-        git push
+          if [[ "$OLD_IP" != "$NEW_IP" ]]; then
+            sed -E -i "s|(ldap://)[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|\1$NEW_IP|" "$FILE"
+            echo "✔️  login.php actualizado con la nueva IP."
+          else
+            echo "ℹ️  La IP no cambió; no se realizaron modificaciones."
+          fi
+
+      # 6. Commit & Push del cambio
+      - name: Commit y push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add php/login.php
+          if git diff --cached --quiet; then
+            echo "ℹ️  Sin cambios para commitear."
+          else
+            git commit -m "ci: update LDAP IP -> ${{ env.VM_IP }}"
+            git push origin HEAD:main
+          fi
