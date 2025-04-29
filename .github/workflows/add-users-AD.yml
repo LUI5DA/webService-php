@@ -37,29 +37,29 @@ jobs:
           inlineScript: |
             echo "👤 Procesando usuario..."
             USER_JSON='${{ matrix.user }}'
-
+      
             az vm run-command invoke \
               --resource-group "$RG" \
               --name "$VM" \
               --command-id RunPowerShellScript \
               --scripts "
-                # Parsear JSON a objeto
                 \$userData = ConvertFrom-Json '$USER_JSON'
-
-                # Convertir la contraseña a SecureString
                 \$securePass = ConvertTo-SecureString \$userData.password -AsPlainText -Force
-
-                # Crear el usuario en AD
-                New-ADUser -Name \$userData.name `
+      
+                # Crear el usuario en AD, con contraseña que nunca expira
+                New-ADUser -Name \$userData.username `
+                           -DisplayName \$userData.name `
                            -SamAccountName \$userData.username `
                            -UserPrincipalName \$userData.email `
                            -AccountPassword \$securePass `
-                           -Enabled \$true
-
+                           -Enabled \$true `
+                           -PasswordNeverExpires \$true `
+                           -ChangePasswordAtLogon \$false
+      
                 # Agregar a grupo de admins si aplica
-                if (\$userData.admin -eq \$true) {
+                if (\$userData.admin) {
                   Add-ADGroupMember -Identity 'Domain Admins' -Members \$userData.username
                 }
-
-                Write-Output \"✅ Usuario \$($userData.username) creado correctamente. Contraseña: \$($userData.password)\"
-              "
+      
+                Write-Output \"✅ Usuario \$($userData.username) creado con contraseña que nunca expira.\"
+            "
