@@ -7,7 +7,7 @@ $username = $_POST['username'];  // Nombre de usuario ingresado en el formulario
 $password = $_POST['password'];  // Contraseña ingresada en el formulario
 
 // Configuración del servidor LDAP y credenciales
-$ldap_server = "ldap://20.3.247.154"; // Dirección de tu servidor LDAP
+$ldap_server = "ldap://20.57.130.249"; // Dirección de tu servidor LDAP
 $ldap_port = 389; // Puerto para conexión LDAP (389 para no cifrado, 636 para LDAPS)
 $base_dn = "DC=redes1,DC=dev"; // Base DN de tu dominio (cambia según tu configuración)
 
