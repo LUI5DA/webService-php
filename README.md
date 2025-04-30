@@ -9,7 +9,7 @@
 
 ## Integrantes
 
-| Nombre                      | Cedúla |
+| Nombre                      | Cédula |
 |-----------------------------|-----------|
 | Dylan Elizondo Alvarado     | 504610652 |
 | Luis David Salgado Gámez    | 208670670 |
