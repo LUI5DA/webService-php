@@ -14,7 +14,7 @@
 | Dylan Elizondo Alvarado     | 504610652 |
 | Luis David Salgado Gámez    | 208670670 |
 | Andrea Orozco Sanabría      | 119160751 |
-| Kate Guillen Oreamuno       | 20820896  |
+| Kate Guillen Oreamuno       | 208290896  |
 
 
 ---
