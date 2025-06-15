@@ -9,7 +9,7 @@ $password = $_POST['password'];  // Contraseña ingresada en el formulario
 // Configuración del servidor LDAP y credenciales
 $ldap_server = "ldap://52.226.17.43"; // Dirección de tu servidor LDAP
 $ldap_port = 389; // Puerto para conexión LDAP (389 para no cifrado, 636 para LDAPS)
-$base_dn = "DC=redes1,DC=dev"; // Base DN de tu dominio (cambia según tu configuración)
+$base_dn = "DC=adservice,DC=local"; // Base DN de tu dominio (cambia según tu configuración)
 
 // Usuario con permisos de lectura en AD (este usuario solo se usa para hacer el bind inicial)
 $ldap_user = "eltigre@adservice.local";  // DN del usuario con permisos adecuados para hacer búsquedas
