@@ -7,13 +7,13 @@ $username = $_POST['username'];  // Nombre de usuario ingresado en el formulario
 $password = $_POST['password'];  // Contraseña ingresada en el formulario
 
 // Configuración del servidor LDAP y credenciales
-$ldap_server = "ldap://20.64.244.59"; // Dirección de tu servidor LDAP
+$ldap_server = "ldap://52.226.17.43"; // Dirección de tu servidor LDAP
 $ldap_port = 389; // Puerto para conexión LDAP (389 para no cifrado, 636 para LDAPS)
 $base_dn = "DC=redes1,DC=dev"; // Base DN de tu dominio (cambia según tu configuración)
 
 // Usuario con permisos de lectura en AD (este usuario solo se usa para hacer el bind inicial)
-$ldap_user = "usuario@redes1.dev";  // DN del usuario con permisos adecuados para hacer búsquedas
-$ldap_password = "holaholaholahola12+"; // Contraseña del usuario para realizar el bind de búsqueda
+$ldap_user = "eltigre@adservice.local";  // DN del usuario con permisos adecuados para hacer búsquedas
+$ldap_password = "ContrasenaSegura2024!"; // Contraseña del usuario para realizar el bind de búsqueda
 
 // Conectar al servidor LDAP
 echo "<script>console.log('Intentando conectar al servidor LDAP: $ldap_server...');</script>";
