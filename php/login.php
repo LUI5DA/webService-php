@@ -40,7 +40,7 @@ if (!$bind) {
 
 // Buscar al usuario en AD por su nombre (cn) usando el valor del formulario
 echo "<script>console.log('Buscando usuario con nombre: $username...');</script>";
-$ldap_search_filter = "(cn=$username)";  // Buscar por nombre común (cn)
+$ldap_search_filter = "(samaccountname=$username)"; // Buscar por nombre común (cn)
 
 // Realizar la búsqueda
 $ldap_search_result = ldap_search($ldap_conn, $base_dn, $ldap_search_filter);
